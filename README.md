@@ -1,4 +1,4 @@
-sand_paint project
+<<<<<<< HEAD
 1、这是一个沙画机器人主体控制程序。由纯c语言写成。
 2、结合沙画机械臂它完成了主要的功能：舵机的控制，关节的控制和执行端的控制。
 
@@ -10,3 +10,7 @@ exsample:存放的是例子程序
 
 v1.0
 nothing
+=======
+# sand_paint
+sand_paint project
+>>>>>>> d434b643c18b01456001b291024951f4a6f504c3
