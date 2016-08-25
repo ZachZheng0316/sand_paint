@@ -1,0 +1,276 @@
+#include "MX28AT.h"
+#include "dmath.h"
+#include "joint.h"
+#include <stdio.h>
+
+static int joint_num = 3; //关节个数默认为3
+static int joint_unit[3] = {1, 2, 3}; //关节组
+
+//设置单个舵机运动速度
+//Succeeded, return 1; failed, return 0;
+int set_one_joint_angle_spe(int joint_id, float angle_spe)
+{
+    float rad_spe;
+    int spe_k;
+
+    rad_spe = PIFromAngle(angle_spe);//把关节角速度转化为关节弧速度
+    spe_k = kFromRadianSpeed(rad_spe);//把关节弧速度转化为对应舵机速度刻度
+    //设置相应舵机速度
+    if(-1 == set_one_servo_word(joint_id, Moving_Speed, spe_k)) {
+        printf("joint::set_one_joint_angle_spe:failed\n");
+        return -1;
+    }
+
+    return 1;
+}
+
+//设置单个舵机目标角度
+int set_one_joint_goal_angle(int joint_id, float goal_angle)
+{
+    int goal_pos;
+    
+    if((goal_angle <= -30) || (goal_angle >= 120)) {
+    	printf("joint angle rangle over!\n");
+    	return -1;
+    }
+    
+     //已知关节当前角度转换为舵机当前刻度
+     goal_pos = positionKFromAngle((unsigned char)joint_id, goal_angle);
+
+     //设置目标刻度
+     if(-1 == set_one_servo_word(joint_id, Goal_Position, goal_pos)) {
+         printf("joint::set_one_joint_goal_angle:failed\n");
+         return -1;
+     }
+
+     return 1;
+}
+
+//设置多个舵机的速度
+int set_many_joint_angle_spe(float angle_spe[])
+{
+    int spe_k[3], i;
+    float rad_spe;
+
+    //把关节角速度转化为舵机速度刻度
+    for(i = 0; i < joint_num; i++) {
+        rad_spe = PIFromAngle(angle_spe[i]);//把关节角速度转化为关节弧速度
+        spe_k[i] = kFromRadianSpeed(rad_spe);//把关节弧速度转化为对应舵机速度刻度
+    }
+
+    //设置速度
+    if(-1 == set_many_servo_word(Moving_Speed, spe_k)){
+        printf("joint::set_many_joint_angle_spe:failed\n");
+        return -1;
+    }
+
+    return 1;
+}
+
+//设置多个舵机的目标刻度
+int set_many_joint_goal_angle(float goal_angle[])
+{
+    int goal_pos[3], i;
+
+    //获取目标刻度
+    for(i = 0; i < joint_num; i++) {
+    	if((goal_angle[i] <= -30) || (goal_angle[i] >= 120)) {
+    		printf("joint angle range over!\n");
+    		return -1;
+    	}
+        goal_pos[i] = positionKFromAngle((unsigned char)joint_unit[i], goal_angle[i]);
+    }
+
+    //设置目标位置
+    if(-1 == set_many_servo_word(Goal_Position, goal_pos)){
+        printf("joint::set_many_joint_goal_angle:failed\n");
+        return -1;
+    }
+
+    return 1;
+}
+
+//获取单个关节目标速度
+float get_one_joint_angle_spe(int joint_id)
+{
+
+    return (float)joint_id;
+}
+
+//获取单个关节目标角度
+float get_one_joint_goal_angle(int joint_id)
+{
+    int servo_goal_k;
+    float joint_goal_angle;
+    
+    //获取关节的目标刻度
+    servo_goal_k = get_one_servo_word(joint_id, Present_Position);
+    //把关节目标刻度转化为关节角度
+    joint_goal_angle = angleFromPositionK((unsigned char)joint_id, servo_goal_k);
+
+    return joint_goal_angle;
+}
+
+//等待单个关节停止
+void wait_for_one_joint(int joint_id)
+{
+    wait_for_one_servo(joint_id); //等待1个舵机运动停止
+
+}
+
+//等待多个关节停止
+void wait_for_many_joint()
+{
+	int id;
+	
+	for(id = 0; id < joint_num; id++)
+		wait_for_one_servo(id+1); //等待1个舵机运动停止
+}
+
+//等待一个舵机运动到exten角度范围内
+void wait_for_one_joint_exten(int joint_id, float exten)
+{
+	int exten_k;
+	
+	//把exten转化为刻度
+	exten_k = (int)(exten / PositionUnit + 0.3);
+	wait_for_one_servo_exten(joint_id, exten_k);
+	
+}
+
+//等待多个舵机运动到exten角度组的范围内
+#define JointNum (3)
+void wait_or_many_joint_exten(float exten[])
+{
+	int exten_k[JointNum];
+	int i;
+	
+	for(i = 0; i < JointNum; i++)
+		exten_k[i] = (int)(exten[i] / PositionUnit + 0.3);
+	
+	wait_for_many_servo_exten(exten_k);
+}		  
+
+//松掉关节的刚度
+void relax_joint()
+{
+	int temp[3] = {0, 0, 0};
+    set_many_servo_byte(Torque_Enable, temp);
+}						  
+
+//以角速度spe_angle运动到目标角度goal_angle
+void move_joint_with_spe1(int joint_id, float goal_angle, float spe_angle)
+{
+	int goal_k, spe_k;
+	float spe_radio;
+	
+	goal_k = positionKFromAngle((unsigned char)joint_id, goal_angle); //目标角度转化为目标刻度
+	spe_radio = PIFromAngle(spe_angle);                         	  //关节角速度转化为关节弧速度
+	spe_k = kFromRadianSpeed(spe_radio);                              //把关节弧速度转化为对应舵机速度寄存器中的刻度
+	
+	move_to_goal_with_spe1(joint_id, goal_k, spe_k);
+}
+
+//以角速度spe_angle[]运动到目标角度goal_angle[]
+void move_joint_with_spe3(float goal_angle[], float spe_angle[])
+{
+	int goal_k[JointNum], spe_k[JointNum], i;
+	float spe_radio;
+	
+	for(i = 0; i < JointNum; i++) {
+		goal_k[i] = positionKFromAngle((unsigned char)(i+1), goal_angle[i]); //目标角度转化为目标刻度
+		spe_radio = PIFromAngle(spe_angle[i]);                         		 //关节角速度转化为关节弧速度
+		spe_k[i] = kFromRadianSpeed(spe_radio);                              //把关节弧速度转化为对应舵机速度寄存器中的刻
+	}
+	
+	move_to_goal_with_spe3(goal_k, spe_k);
+}        
+
+//从当前角度按规定的时间运动到目标角度
+int move_joint_with_t1(int joint_id, float goal_angle, float t1)
+{
+	float pre_angle, angle_spe;
+
+	if(t1 <= 0.0) {
+		printf("input time error...\n");
+		return -1;
+	}
+	
+	//获得当前角度
+	pre_angle = get_one_joint_goal_angle(joint_id);
+	//计算运动速度
+	angle_spe = (goal_angle - pre_angle)/t1;
+	
+	//按给定的时间运动到目标位置
+	move_joint_with_spe1(joint_id, goal_angle, angle_spe);
+		
+	return 1;
+}
+
+//从当前角度按规定的时间运动到目标角度
+int move_joint_with_t3(float goal_angle[], float t3[])
+{
+	int i;
+	float angle_spe[3], temp;	
+	
+	if((t3[0] <= 0.0) || (t3[1] <= 0.0) || (t3[2] <= 0.0)) {
+		printf("input time error...\n");
+		return -1;
+	}
+	
+	//计算运动的速度
+	for(i = 0; i < 3; i++) {
+		temp = get_one_joint_goal_angle(i+1);
+		angle_spe[i] = (goal_angle[i] - temp) / t3[i];
+	}
+	
+	//按给定的时间运动到目标位置
+	move_joint_with_spe3(goal_angle, angle_spe);
+	
+	return 1;
+}
+
+//控制舵机的demo
+void joint_control_demo()
+{
+    char choice;
+    int joint_id[3];
+    float value1[3], value2[3];
+    printf("welcome to servo control demo...\n");fflush(stdout);
+    while(1) {
+        printf("please chose mode:q:quit; s:sigle joint；m:three joint\n");
+        fflush(stdout);
+        if(0 == scanf("%c", &choice)) return ;
+        if('q' == choice) {
+            printf("be quiting...\n");fflush(stdout);
+            relax_joint();
+            break;
+        }
+        else if('s' == choice) {
+            printf("welcome to sigle joint control...\n");
+            printf("please input Joint ID:");fflush(stdout);
+            if(0 == scanf("%d", &joint_id[0])) return;fflush(stdin);
+            value1[0] = get_one_joint_goal_angle(joint_id[0]);
+            printf("(%d) joint pre-position (%f)\n", joint_id[0], value1[0]);
+            printf("please input goal-position and move speed:");fflush(stdout);
+            if(0 == scanf("%f %f", &value1[0], &value2[0])) return;
+            move_joint_with_spe1(joint_id[0], value1[0], value2[0]);
+        }
+        else if('m' == choice) {
+        	joint_id[0] = 1; joint_id[1] = 2; joint_id[2] = 3;
+            printf("welcome to three servos control...\n");
+            //获得当前位置
+            value1[0] = get_one_joint_goal_angle(joint_id[0]); //
+            value1[1] = get_one_joint_goal_angle(joint_id[1]);
+            value1[2] = get_one_joint_goal_angle(joint_id[2]);
+            printf("(1 2 3)joint pre-position (%f %f %f)\n", value1[0], value1[1], value1[2]);
+            printf("please input goal-position (gp1, gp2, gp3):");fflush(stdout);
+            if(0 == scanf("%f %f %f", &value1[0], &value1[1], &value1[2])) return;fflush(stdin);
+            printf("please input move speed (sp1, sp2, sp3):");fflush(stdout);
+            if(0 == scanf("%f %f %f", &value2[0], &value2[1], &value2[2])) return;fflush(stdin);
+          	move_joint_with_spe3(value1, value2);
+        }
+        else {
+        }
+    }
+}
